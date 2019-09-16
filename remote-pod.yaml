@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remote-work
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: remote-work
+  template:
+    metadata:
+      labels:
+        app: remote-work
+    spec:
+      containers:
+      - name: remote-work
+        image: registry.datexis.com/bwinter/remote-work:latest
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: publicfs
+          mountPath: /pvc/publicfs
+        - name: ssh-key
+          mountPath: /root/ssh-key
+        ports:
+          - containerPort: 22
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "cat /root/ssh-key/id_rsa.pub >> /root/.ssh/authorized_keys"]
+        resources:
+          limits:
+            nvidia.com/gpu: 0
+            memory: 64000Mi
+            cpu: 32
+      # nodeSelector:
+      #   gpu: k80
+  #      tolerations:
+  #      - operator: "Exists"
+  #      - key: "nvidia.com/gpu"
+      imagePullSecrets:
+      - name: private-registry-auth
+      volumes:
+        - name: ssh-key
+          secret:
+            secretName: my-ssh-public-key
+            defaultMode: 256
+        - name: publicfs
+          flexVolume:
+            driver: ceph.rook.io/rook
+            fsType: ceph
+            options:
+              fsName: home
+              clusterNamespace: rook-ceph
